@@ -1,0 +1,9 @@
+.DS_Store
+**/.DS_Store
+
+# MemPalace per-project files
+mempalace.yaml
+entities.json
+
+# Локальные требования; на публичный git не класть
+requirements/
