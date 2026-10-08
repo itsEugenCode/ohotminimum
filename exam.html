@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Охотминимум — экзамен</title>
+<title>Охотминимум</title>
 <style>
   :root {
     --ink: #1c2416;
@@ -113,6 +113,7 @@
   }
   .opt input { margin: 6px 0 0; width: 20px; height: 20px; flex: 0 0 auto; accent-color: var(--green); }
   .let { flex: 0 0 auto; min-width: 1.4em; margin-top: 2px; font-weight: 700; color: var(--green); }
+  .opt strong { font-weight: 750; }
   .opt:has(input:checked) { border-color: var(--ink); background: #f7f4ee; }
   .opt.good,
   .opt.good:has(input:checked) { border-color: var(--green); background: var(--green-soft); }
@@ -162,12 +163,12 @@
 </style>
 </head>
 <body>
-<noscript>Для экзамена и билетов нужен JavaScript. Экран выбора ниже останется, сами вопросы без скрипта не соберутся.</noscript>
+<noscript>Для вопросов нужен JavaScript. Экран выбора ниже останется, сами вопросы без скрипта не соберутся.</noscript>
 <div id="bar">
   <div class="bar-row">
-    <div id="timer">2:40:00</div>
+    <div id="timer"></div>
     <div id="progress"></div>
-    <a href="#start" id="leave-link">Пауза</a>
+    <a href="#start" id="leave-link">На главную</a>
     <a href="#check" id="finish-link">Завершить</a>
   </div>
   <details>
@@ -576,17 +577,13 @@
     <h1>Проверка знаний</h1>
     <p class="lead">Вопросы из перечня Минприроды. После выбора ответ фиксируется, и сразу виден правильный вариант.</p>
     <div class="cards">
-      <a class="card" href="#e-0" data-build="exam">
-        <strong>Экзамен</strong>
-        <span>160 случайных вопросов. Ответы вразброс. Время 2 часа 40 минут. Зачёт — 120 правильных.</span>
-      </a>
-      <a class="card" id="resume" href="#e-0" data-build="exam-resume" hidden>
-        <strong>Продолжить экзамен</strong>
-        <span id="resume-text">Незаконченная попытка сохранена в этой вкладке.</span>
-      </a>
       <a class="card" href="#s-0" data-build="study">
         <strong>Вопросы для изучения</strong>
-        <span id="study-card-text">Все вопросы подряд, с первого. Варианты с буквами, как в перечне.</span>
+        <span id="study-card-text">Все вопросы подряд, с первого. Правильный ответ выделен жирным.</span>
+      </a>
+      <a class="card" href="#t-0" data-build="theory">
+        <strong>Теория</strong>
+        <span id="theory-card-text">Все вопросы подряд, с первого. Правильный ответ выделен жирным.</span>
       </a>
       <a class="card" href="#c-0" data-build="check">
         <strong>Вопросы для проверки знаний</strong>
@@ -6557,15 +6554,10 @@
 </script>
 <script>
 (function () {
-  var EXAM_N = 160;
-  var PASS = 120;
-  var DURATION = (2 * 60 + 40) * 60 * 1000;
-  var KEY = "ohot-exam-v1";
   var BANK = JSON.parse(document.getElementById("bank").textContent);
   var byOrder = new Map(BANK.questions.map(function (q) { return [q.order, q]; }));
   var session = null;
   var lastHash = "";
-  var resultStamp = 0;
 
   function shuffle(list) {
     var a = list.slice();
@@ -6584,40 +6576,18 @@
     });
   }
 
-  function fmt(ms) {
-    var s = Math.max(0, Math.ceil(ms / 1000));
-    var h = Math.floor(s / 3600);
-    var m = Math.floor((s % 3600) / 60);
-    var sec = s % 60;
-    return h + ":" + String(m).padStart(2, "0") + ":" + String(sec).padStart(2, "0");
-  }
-
-  function loadSaved() {
-    try { return JSON.parse(sessionStorage.getItem(KEY) || "null"); }
-    catch (e) { return null; }
-  }
-
-  function persist() {
-    if (!session || session.mode !== "exam") return;
-    sessionStorage.setItem(KEY, JSON.stringify({
-      mode: "exam",
-      items: session.items,
-      answers: session.answers,
-      deadline: session.deadline,
-      index: session.index || 0,
-      done: !!session.done,
-      expired: !!session.expired
-    }));
-  }
-
   function clearScreens() {
     document.querySelectorAll("section.qscreen").forEach(function (el) { el.remove(); });
   }
 
   function qid(index) {
     if (!session) return "start";
-    if (session.mode === "exam") return "e-" + index;
-    return (session.mode === "study" ? "s-" : "c-") + index;
+    var prefix = { study: "s-", theory: "t-", check: "c-" }[session.mode] || "c-";
+    return prefix + index;
+  }
+
+  function withLetters() {
+    return session && (session.mode === "study" || session.mode === "theory");
   }
 
   function optionByLetter(q, letter) {
@@ -6637,13 +6607,15 @@
       sec.id = qid(index);
       var prev = index === 0 ? "#" + qid(0) : "#" + qid(index - 1);
       var next = index === session.items.length - 1 ? "#check" : "#" + qid(index + 1);
-      var modeName = session.mode === "exam" ? "Экзамен" : (session.mode === "study" ? "Изучение" : "Проверка");
+      var modeName = session.mode === "study" ? "Изучение" : (session.mode === "theory" ? "Теория" : "Проверка");
       var kicker = modeName + " · " + (index + 1) + " из " + session.items.length;
       var opts = item.letters.map(function (letter) {
         var opt = optionByLetter(q, letter);
         var checked = session.answers[item.order] === letter ? " checked" : "";
-        var mark = session.mode === "study" ? '<b class="let">' + esc(letter) + '</b>' : "";
-        return '<label class="opt"><input type="radio" name="q' + item.order + '" value="' + esc(letter) + '"' + checked + '>' + mark + '<span>' + esc(opt ? opt.text : "") + '</span></label>';
+        var mark = withLetters() ? '<b class="let">' + esc(letter) + '</b>' : "";
+        var text = esc(opt ? opt.text : "");
+        if (withLetters() && letter === q.correct_answer.letter) text = "<strong>" + text + "</strong>";
+        return '<label class="opt"><input type="radio" name="q' + item.order + '" value="' + esc(letter) + '"' + checked + '>' + mark + '<span>' + text + '</span></label>';
       }).join("");
       var prevHtml = index === 0 ? "" : '<a class="btn ghost" href="' + prev + '">Назад</a>';
       sec.innerHTML = '<div class="wrap"><p class="kicker">' + kicker + '</p><p class="src">Вопрос ' + q.number + '</p><h2>' + esc(q.text) + '</h2>' + opts + '<div class="nav">' + prevHtml + '<a class="btn" href="' + next + '">' + (index === session.items.length - 1 ? "К сдаче" : "Дальше") + '</a></div></div>';
@@ -6672,35 +6644,14 @@
     }).join("");
   }
 
-  function beginExam(resume) {
-    var saved = loadSaved();
-    if (resume && saved && saved.mode === "exam") {
-      session = saved;
-      session.answers = saved.answers || {};
-    } else {
-      var picked = shuffle(BANK.questions).slice(0, EXAM_N);
-      session = {
-        mode: "exam",
-        items: picked.map(function (q) {
-          return { order: q.order, letters: shuffle(q.options.map(function (o) { return o.letter; })) };
-        }),
-        answers: {},
-        deadline: Date.now() + DURATION,
-        index: 0,
-        done: false
-      };
-    }
-    renderSession();
-    persist();
-  }
-
-  function beginQuestions(study) {
-    var list = study ? BANK.questions.slice() : shuffle(BANK.questions.slice());
+  function beginQuestions(mode) {
+    var ordered = mode === "study" || mode === "theory";
+    var list = ordered ? BANK.questions.slice() : shuffle(BANK.questions.slice());
     session = {
-      mode: study ? "study" : "check",
+      mode: mode,
       items: list.map(function (q) {
         var letters = q.options.map(function (o) { return o.letter; });
-        return { order: q.order, letters: study ? letters : shuffle(letters) };
+        return { order: q.order, letters: ordered ? letters : shuffle(letters) };
       }),
       answers: {},
       index: 0,
@@ -6725,33 +6676,18 @@
 
   function paint() {
     var hash = location.hash || "";
-    var onQ = /^#[esc]-\d+$/.test(hash);
+    var onQ = /^#[sct]-\d+$/.test(hash);
     document.body.classList.toggle("inquiz", !!(session && onQ && !session.done));
     if (!session) return;
     var timer = document.getElementById("timer");
-    if (session.mode === "exam" && session.deadline && !session.done) {
-      var left = session.deadline - Date.now();
-      if (left <= 0) {
-        timer.textContent = "0:00:00";
-        timer.classList.add("warn");
-        session.done = true;
-        session.expired = true;
-        persist();
-        if (location.hash !== "#result") location.hash = "#result";
-        return;
-      }
-      timer.textContent = fmt(left);
-      timer.classList.toggle("warn", left < 10 * 60 * 1000);
-    } else if (session.mode === "check" || session.mode === "study") {
-      timer.textContent = session.mode === "study" ? "Изучение" : "Проверка";
-      timer.classList.remove("warn");
-    }
-    timer.classList.toggle("label", session.mode !== "exam");
-    document.getElementById("leave-link").textContent = session.mode === "exam" ? "Пауза" : "На главную";
+    timer.textContent = session.mode === "study" ? "Изучение" : (session.mode === "theory" ? "Теория" : "Проверка");
+    timer.classList.add("label");
+    timer.classList.remove("warn");
+    document.getElementById("leave-link").textContent = "На главную";
     var progress = document.getElementById("progress");
     progress.textContent = "Отвечено " + answeredCount() + " из " + session.items.length;
     var current = -1;
-    var qm = /^#[esc]-(\d+)$/.exec(hash);
+    var qm = /^#[sct]-(\d+)$/.exec(hash);
     if (qm) current = Number(qm[1]);
     if (current >= 0) session.index = current;
     document.querySelectorAll("#mapnav a").forEach(function (a) {
@@ -6771,7 +6707,6 @@
     var a = answeredCount();
     var text = "Отвечено " + a + " из " + total + ".";
     if (a < total) text += " Без ответа: " + (total - a) + ". Пустой ответ считается ошибкой.";
-    if (session.mode === "exam") text += " Для зачёта нужно " + PASS + " правильных.";
     document.getElementById("check-text").textContent = text;
     document.getElementById("check-back").href = "#" + qid(session.index || 0);
   }
@@ -6784,12 +6719,11 @@
     if (!session) {
       document.getElementById("result-title").textContent = "Нет попытки";
       document.getElementById("result-score").textContent = "";
-      document.getElementById("result-note").textContent = "Сначала откройте экзамен или билет.";
+      document.getElementById("result-note").textContent = "Сначала откройте вопросы.";
       document.getElementById("result-list").innerHTML = "";
       return;
     }
     session.done = true;
-    if (session.mode === "exam") persist();
     document.querySelectorAll(".qscreen .opt").forEach(function (label) {
       var radio = label.querySelector("input");
       var order = Number(radio.name.slice(1));
@@ -6800,24 +6734,16 @@
     });
     var total = session.items.length;
     var correct = scoreSession();
-    var passed = session.mode === "exam" && correct >= PASS;
-    document.getElementById("result-kicker").textContent = session.mode === "exam"
-      ? "Экзамен"
-      : (session.mode === "study" ? "Изучение" : "Проверка знаний");
+    document.getElementById("result-kicker").textContent = session.mode === "study"
+      ? "Изучение"
+      : (session.mode === "theory" ? "Теория" : "Проверка знаний");
     var title = document.getElementById("result-title");
     var score = document.getElementById("result-score");
-    if (session.mode === "exam") {
-      title.textContent = passed ? "Зачёт" : "Незачёт";
-      score.className = "score " + (passed ? "pass" : "fail");
-    } else {
-      title.textContent = session.mode === "study" ? "Изучение завершено" : "Проверка завершена";
-      score.className = "score";
-    }
+    title.textContent = session.mode === "study" ? "Изучение завершено" : (session.mode === "theory" ? "Теория завершена" : "Проверка завершена");
+    score.className = "score";
     score.textContent = correct + " из " + total;
-    var note = "Порог зачёта на экзамене — " + PASS + " из " + EXAM_N + ".";
-    if (session.expired) note = "Время вышло. " + note;
-    if (session.mode === "check") note = "Вопросы шли вперемешку, ответы без букв. Таймера и порога нет.";
-    if (session.mode === "study") note = "Вопросы шли по порядку перечня, варианты с буквами. Таймера нет.";
+    var note = "Вопросы шли вперемешку, ответы без букв.";
+    if (session.mode === "study" || session.mode === "theory") note = "Вопросы шли по порядку перечня, варианты с буквами. Правильный ответ был выделен жирным.";
     document.getElementById("result-note").textContent = note;
     var html = "";
     session.items.forEach(function (item, index) {
@@ -6833,7 +6759,7 @@
       }
       var yours = chosenOpt ? esc(chosenOpt.text) : "нет";
       var rightText = rightOpt ? esc(rightOpt.text) : "";
-      if (session.mode === "study") {
+      if (withLetters()) {
         if (chosenOpt) yours = esc(chosen) + ") " + yours;
         if (rightOpt) rightText = esc(right) + ") " + rightText;
       }
@@ -6847,26 +6773,14 @@
 
   function fillCards() {
     var n = BANK.questions.length;
-    document.getElementById("study-card-text").textContent = "Все " + n + " вопросов подряд, с первого. Варианты с буквами, как в перечне.";
+    document.getElementById("study-card-text").textContent = "Все " + n + " вопросов подряд, с первого. Правильный ответ выделен жирным.";
+    document.getElementById("theory-card-text").textContent = "Все " + n + " вопросов подряд, с первого. Правильный ответ выделен жирным.";
     document.getElementById("check-card-text").textContent = "Те же " + n + " вопросов вперемешку. Ответы вразброс, без букв.";
-  }
-
-  function refreshHome() {
-    var saved = loadSaved();
-    var resume = document.getElementById("resume");
-    var alive = saved && saved.mode === "exam" && !saved.done && saved.deadline > Date.now();
-    resume.hidden = !alive;
-    if (alive) {
-      resume.href = "#e-" + (saved.index || 0);
-      var left = saved.deadline - Date.now();
-      document.getElementById("resume-text").textContent = "Осталось " + fmt(left) + ". Отвечено " + Object.keys(saved.answers || {}).length + " из " + saved.items.length + ".";
-    }
   }
 
   function enter(hash) {
     if (hash === "#check") fillCheck();
     if (hash === "#result") fillResult();
-    if (hash === "#start" || hash === "") refreshHome();
   }
 
   function sync() {
@@ -6883,13 +6797,12 @@
     var a = e.target.closest("a[data-build]");
     if (!a) return;
     var kind = a.getAttribute("data-build");
-    if (kind === "exam") beginExam(false);
-    if (kind === "exam-resume") beginExam(true);
-    if (kind === "check") beginQuestions(false);
-    if (kind === "study") beginQuestions(true);
+    if (kind === "check") beginQuestions("check");
+    if (kind === "study") beginQuestions("study");
+    if (kind === "theory") beginQuestions("theory");
     if (kind === "clear") {
       session = null;
-      sessionStorage.removeItem(KEY);
+      sessionStorage.removeItem("ohot-exam-v1");
       clearScreens();
       document.body.classList.remove("inquiz");
     }
@@ -6902,7 +6815,6 @@
     if (session.answers[order]) return;
     session.answers[order] = input.value;
     revealQuestion(order);
-    if (session.mode === "exam") persist();
     paint();
   });
 
@@ -6912,7 +6824,6 @@
   requestAnimationFrame(frame);
 
   fillCards();
-  refreshHome();
   sync();
 })();
 </script>
