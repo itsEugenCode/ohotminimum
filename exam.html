@@ -577,10 +577,6 @@
     <h1>Проверка знаний</h1>
     <p class="lead">Вопросы из перечня Минприроды. После выбора ответ фиксируется, и сразу виден правильный вариант.</p>
     <div class="cards">
-      <a class="card" href="#s-0" data-build="study">
-        <strong>Вопросы для изучения</strong>
-        <span id="study-card-text">Все вопросы подряд, с первого. Правильный ответ выделен жирным.</span>
-      </a>
       <a class="card" href="#t-0" data-build="theory">
         <strong>Теория</strong>
         <span id="theory-card-text">Все вопросы подряд, с первого. Правильный ответ выделен жирным.</span>
@@ -6582,12 +6578,11 @@
 
   function qid(index) {
     if (!session) return "start";
-    var prefix = { study: "s-", theory: "t-", check: "c-" }[session.mode] || "c-";
-    return prefix + index;
+    return (session.mode === "theory" ? "t-" : "c-") + index;
   }
 
   function withLetters() {
-    return session && (session.mode === "study" || session.mode === "theory");
+    return session && session.mode === "theory";
   }
 
   function optionByLetter(q, letter) {
@@ -6607,7 +6602,7 @@
       sec.id = qid(index);
       var prev = index === 0 ? "#" + qid(0) : "#" + qid(index - 1);
       var next = index === session.items.length - 1 ? "#check" : "#" + qid(index + 1);
-      var modeName = session.mode === "study" ? "Изучение" : (session.mode === "theory" ? "Теория" : "Проверка");
+      var modeName = session.mode === "theory" ? "Теория" : "Проверка";
       var kicker = modeName + " · " + (index + 1) + " из " + session.items.length;
       var opts = item.letters.map(function (letter) {
         var opt = optionByLetter(q, letter);
@@ -6645,7 +6640,7 @@
   }
 
   function beginQuestions(mode) {
-    var ordered = mode === "study" || mode === "theory";
+    var ordered = mode === "theory";
     var list = ordered ? BANK.questions.slice() : shuffle(BANK.questions.slice());
     session = {
       mode: mode,
@@ -6676,18 +6671,18 @@
 
   function paint() {
     var hash = location.hash || "";
-    var onQ = /^#[sct]-\d+$/.test(hash);
+    var onQ = /^#[tc]-\d+$/.test(hash);
     document.body.classList.toggle("inquiz", !!(session && onQ && !session.done));
     if (!session) return;
     var timer = document.getElementById("timer");
-    timer.textContent = session.mode === "study" ? "Изучение" : (session.mode === "theory" ? "Теория" : "Проверка");
+    timer.textContent = session.mode === "theory" ? "Теория" : "Проверка";
     timer.classList.add("label");
     timer.classList.remove("warn");
     document.getElementById("leave-link").textContent = "На главную";
     var progress = document.getElementById("progress");
     progress.textContent = "Отвечено " + answeredCount() + " из " + session.items.length;
     var current = -1;
-    var qm = /^#[sct]-(\d+)$/.exec(hash);
+    var qm = /^#[tc]-(\d+)$/.exec(hash);
     if (qm) current = Number(qm[1]);
     if (current >= 0) session.index = current;
     document.querySelectorAll("#mapnav a").forEach(function (a) {
@@ -6734,16 +6729,15 @@
     });
     var total = session.items.length;
     var correct = scoreSession();
-    document.getElementById("result-kicker").textContent = session.mode === "study"
-      ? "Изучение"
-      : (session.mode === "theory" ? "Теория" : "Проверка знаний");
+    document.getElementById("result-kicker").textContent = session.mode === "theory" ? "Теория" : "Проверка знаний";
     var title = document.getElementById("result-title");
     var score = document.getElementById("result-score");
-    title.textContent = session.mode === "study" ? "Изучение завершено" : (session.mode === "theory" ? "Теория завершена" : "Проверка завершена");
+    title.textContent = session.mode === "theory" ? "Теория завершена" : "Проверка завершена";
     score.className = "score";
     score.textContent = correct + " из " + total;
-    var note = "Вопросы шли вперемешку, ответы без букв.";
-    if (session.mode === "study" || session.mode === "theory") note = "Вопросы шли по порядку перечня, варианты с буквами. Правильный ответ был выделен жирным.";
+    var note = session.mode === "theory"
+      ? "Вопросы шли по порядку перечня, варианты с буквами. Правильный ответ был выделен жирным."
+      : "Вопросы шли вперемешку, ответы без букв.";
     document.getElementById("result-note").textContent = note;
     var html = "";
     session.items.forEach(function (item, index) {
@@ -6773,7 +6767,6 @@
 
   function fillCards() {
     var n = BANK.questions.length;
-    document.getElementById("study-card-text").textContent = "Все " + n + " вопросов подряд, с первого. Правильный ответ выделен жирным.";
     document.getElementById("theory-card-text").textContent = "Все " + n + " вопросов подряд, с первого. Правильный ответ выделен жирным.";
     document.getElementById("check-card-text").textContent = "Те же " + n + " вопросов вперемешку. Ответы вразброс, без букв.";
   }
@@ -6798,7 +6791,6 @@
     if (!a) return;
     var kind = a.getAttribute("data-build");
     if (kind === "check") beginQuestions("check");
-    if (kind === "study") beginQuestions("study");
     if (kind === "theory") beginQuestions("theory");
     if (kind === "clear") {
       session = null;
